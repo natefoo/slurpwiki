@@ -117,22 +117,6 @@ class SlurpWiki(object):
         # seriously who doesn't use ids or classes at all?
         for div_tag in soup.find_all('div'):
             if div_tag.attrs.get('style', '') == 'font-family: fixed-width, monospace; padding: 10px;':
-                # requires beautifulsoup < 4.4.0 due to a bug, not sure it's
-                # been reported, but when extracting the <del> tags, if the
-                # <del> tag is the last thing in the <div>, the div object
-                # becomes None after extraction
-                if rev != 1:
-                    for del_tag in div_tag.find_all('del'):
-                        #print('removed <del> tag:', del_tag.extract())
-                        del_tag.extract()
-                else:
-                    for ins_tag in div_tag.find_all('ins'):
-                        #print('removed <ins> tag:', ins_tag.extract())
-                        ins_tag.extract()
-                    for del_tag in div_tag.find_all('del'):
-                        del_content = ''.join([ l for l in del_tag.strings ])
-                        #print('replaced <del> tag:', del_content)
-                        del_tag.replace_with(del_content)
                 content = []
                 for line in div_tag.strings:
                     # there's an extra space at the beginning of every line
