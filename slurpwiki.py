@@ -5,6 +5,7 @@
 import os
 import sys
 import json
+import shutil
 import codecs
 import datetime
 import subprocess
@@ -21,10 +22,11 @@ class SlurpWiki(object):
     def __init__(self, project):
         self.nonapi_base = 'https://sourceforge.net/p/{project}/wiki/'.format(project=project)
         self.api_base = 'https://sourceforge.net/rest/p/{project}/wiki/'.format(project=project)
-        self.html_work_dir = os.path.join(Slurp.work_dir, 'html')
-        self.md_work_dir = os.path.join(Slurp.work_dir, 'md')
-        self.history_work_dir = os.path.join(Slurp.work_dir, 'history')
-        for path in (self.html_work_dir, self.md_work_dir, self.history_work_dir):
+        self.html_work_dir = os.path.abspath(os.path.join(SlurpWiki.work_dir, 'html'))
+        self.md_work_dir = os.path.abspath(os.path.join(SlurpWiki.work_dir, 'md'))
+        self.history_work_dir = os.path.abspath(os.path.join(SlurpWiki.work_dir, 'history'))
+        self.git_work_dir = os.path.abspath(os.path.join(SlurpWiki.work_dir, 'git'))
+        for path in (self.html_work_dir, self.md_work_dir, self.history_work_dir, self.git_work_dir):
             if not os.path.exists(path):
                 os.makedirs(path)
 
@@ -136,7 +138,37 @@ class SlurpWiki(object):
                 page_rev = page_history[0]
                 self.page_version(page, page_rev)
 
+    def build_git_repo(self):
+        os.chdir(self.git_work_dir)
+        if not os.path.exists('.git'):
+            subprocess.check_call(['git', 'init', '.'])
+        for histfile in os.listdir(self.history_work_dir):
+            page = os.path.splitext(histfile)[0]
+            histfile_path = os.path.join(self.history_work_dir, histfile)
+            history = json.load(codecs.open(histfile_path, encoding='utf-8'))
+            for rev in reversed(history):
+                versioned_page = os.path.join(self.md_work_dir,
+                                              '{page}_{rev}.md'.format(page=page, rev=rev[0]))
+                unversioned_page = os.path.join(self.git_work_dir, '{page}.md'.format(page=page))
+                shutil.copy(versioned_page, unversioned_page)
+                cmd = ['git', 'status', '--short']
+                if not subprocess.check_output(cmd):
+                    # apparently there are empty commits in SF wikis
+                    continue
+                cmd = ['git', 'add', '{page}.md'.format(page=page)]
+                print('executing: %s' % ' '.join(cmd))
+                subprocess.check_call(cmd)
+                cmd = ['git',
+                       'commit',
+                       '--author={name} <{username}@users.sourceforge.net>'.format(name=rev[2],
+                                                                                   username=rev[1]),
+                       '--date={date}'.format(date=rev[3]),
+                       '--message={page} version {rev}'.format(page=page, rev=rev[0])]
+                print('executing: %s' % ' '.join(cmd))
+                subprocess.check_call(cmd)
+
 if __name__ == '__main__':
     assert sys.argv[1], 'usage: slurpwiki.py <sf-project-name>'
-    slurp = Slurp(sys.argv[1])
+    slurp = SlurpWiki(sys.argv[1])
     slurp.all_page_versions()
+    slurp.build_git_repo()
