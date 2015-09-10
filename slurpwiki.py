@@ -120,12 +120,16 @@ class SlurpWiki(object):
         for div_tag in soup.find_all('div'):
             if div_tag.attrs.get('style', '') == 'font-family: fixed-width, monospace; padding: 10px;':
                 content = []
+                # most "lines" start with a newline
                 for line in div_tag.strings:
                     # there's an extra space at the beginning of every line
                     if line[0] == ' ':
                         line = line[1:]
                     elif line[0:2] == '\n ':
                         line = '\n' + line[2:]
+                    # there's an extra space at the end of every line
+                    if len(line) and line[-1] == ' ':
+                        line = line[:-1]
                     content.append(line)
                 self.write_md(page, rev, ''.join(content))
                 break
